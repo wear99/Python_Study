@@ -13,6 +13,14 @@ git push -u origin master
 1.清空网站上目录内的
 2.剪切完本地目录的，连接好后，再粘帖回来。
 
+拉取：从github下载到本地；
+推送：从本地上传到github
+
+上传过程：
+本地的文件先要暂存更改；
+然后在上传；
+
+
 
 …在本地建立一个新的目录输入以下命令：
 echo "# Python_Study" >> README.md
