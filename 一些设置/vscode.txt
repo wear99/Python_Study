@@ -1,7 +1,28 @@
+vscode插件安装
+
+0.chinese
+
+1.python
+
+2.vscode-icons
+
+3.Bracket Pair Colorizer
+
+
+
 代码检查：
-flake8  ,设置中去除 E,W 类错误提示
+flake8 ，感觉不如默认的pylint，默认使用最小化检查，只提示错误 
 
 
+代码格式化：
+python.formatting.provider
+
+选中 yapf
+
+
+中文显示乱码：
+设置里面：
+files.autoGuessEncoding
 
 
 在c:user\用户名\新建PIP文件夹，里面新建pip.ini

@@ -1,0 +1,3 @@
+pip install pypiwin32    #win32模块
+
+pip install yafp   #代码格式化

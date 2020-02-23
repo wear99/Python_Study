@@ -1,0 +1,5 @@
+可以直接用python自带的tkinter模块生成
+
+也可以安装VB6,再装tkinter-designer
+
+会把VB6里面设计的窗体生成python代码
