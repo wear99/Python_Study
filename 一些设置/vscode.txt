@@ -8,10 +8,12 @@ vscode插件安装
 
 3.Bracket Pair Colorizer
 
+python.jediEnabled
+Microsoft.python.languageserver导致
 
 
 代码检查：
-flake8 ，感觉不如默认的pylint，默认使用最小化检查，只提示错误 
+flake8 ，感觉不如默认的pylint，默认使用最小化检查Pylint Use Minimal Checkers，只提示错误 
 
 
 代码格式化：

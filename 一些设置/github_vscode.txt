@@ -9,27 +9,26 @@ git remote add origin https://github.com/wear99/Python_Study.git
 git push -u origin master
 
 
+如果网上有文件，本地为空文件夹，先确保在当前文件夹下：
+git init         #当前文件夹初始化
+git git config --global user.name "wear99"                      #设置远程连接的用户名
+git config --global user.email "finne.sun@qq.com"         #设置远程连接的邮箱
+git remote add origin https://github.com/wear99/Python_Study.git                  #和远程项目建立关联
+git pull origin master                                                            #从远程项目上下载到本地
+如果报错：'fatal:remote origin already exists，则先删除，git remote rm origin。再执行
+
+
+
 网站上的文件和本地的一定要有所关联，否则会出错。解决办法：
 1.清空网站上目录内的
 2.剪切完本地目录的，连接好后，再粘帖回来。
 
-拉取：从github下载到本地；
-推送：从本地上传到github
+拉取（PULL）：从github下载到本地；
+推送(push)：从本地上传到github
 
 上传过程：
 本地的文件先要暂存更改；
 然后在上传；
-
-
-
-…在本地建立一个新的目录输入以下命令：
-echo "# Python_Study" >> README.md
-git init
-git add README.md
-git commit -m "first commit"
-git remote add origin https://github.com/wear99/Python_Study.git
-git push -u origin master
-
 
 
 …在本地已有文件，需要push到网上，则输入以下命令：
