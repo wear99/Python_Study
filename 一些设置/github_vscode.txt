@@ -4,11 +4,13 @@
 
 3.Github上新建的目录，里面不要有readme之类的文件。
 
-4.本地文件夹如果已有文件，则输入命令
+4.1
+本地文件夹如果已有文件，网上没有，则输入命令
 git remote add origin https://github.com/wear99/Python_Study.git
 git push -u origin master
 
 
+4.2
 如果网上有文件，本地为空文件夹，先确保在当前文件夹下：
 git init         #当前文件夹初始化
 git git config --global user.name "wear99"                      #设置远程连接的用户名
