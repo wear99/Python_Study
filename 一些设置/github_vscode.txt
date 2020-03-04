@@ -15,11 +15,18 @@ git push -u origin master
 git init         #当前文件夹初始化
 git git config --global user.name "wear99"                      #设置远程连接的用户名
 git config --global user.email "finne.sun@qq.com"         #设置远程连接的邮箱
-git remote add origin https://github.com/wear99/Python_Study.git                  #和远程项目建立关联
+git remote add github https://github.com/wear99/Python_Study.git                  #和远程项目建立关联
 git pull origin master                                                            #从远程项目上下载到本地
 如果报错：'fatal:remote origin already exists，则先删除，git remote rm origin。再执行
 
+4.3
+如果要连接码云gitee:用法一样,只是把地址改改就行了
+git remote add gitee https://gitee.com/finnesun/Python_Study.git   #和远程项目建立关联
 
+然后使用 推送到...  和拉取自.... 就可以选择哪个仓库
+
+查看已关联的远程仓库: git remote -v
+删除已关联的仓库: git remote rm github(或gitee)
 
 网站上的文件和本地的一定要有所关联，否则会出错。解决办法：
 1.清空网站上目录内的
