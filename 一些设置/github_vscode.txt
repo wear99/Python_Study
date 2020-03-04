@@ -15,13 +15,14 @@ git push -u origin master
 git init         #当前文件夹初始化
 git git config --global user.name "wear99"                      #设置远程连接的用户名
 git config --global user.email "finne.sun@qq.com"         #设置远程连接的邮箱
-git remote add github https://github.com/wear99/Python_Study.git                  #和远程项目建立关联
-git pull origin master                                                            #从远程项目上下载到本地
+git remote add github https://github.com/wear99/Python_Study.git                  #和GITHUB远程项目建立HTTPS(用户名和密码)关联
+git pull origin master                                                                                 #从远程项目上 下载到本地
+git push -u origin master
 如果报错：'fatal:remote origin already exists，则先删除，git remote rm origin。再执行
 
 4.3
 如果要连接码云gitee:用法一样,只是把地址改改就行了
-git remote add gitee https://gitee.com/finnesun/Python_Study.git   #和远程项目建立关联
+git remote add gitee https://gitee.com/finnesun/Python_Study.git    #和远程项目建立关联
 
 然后使用 推送到...  和拉取自.... 就可以选择哪个仓库
 
@@ -35,11 +36,32 @@ git remote add gitee https://gitee.com/finnesun/Python_Study.git   #和远程项目建
 拉取（PULL）：从github下载到本地；
 推送(push)：从本地上传到github
 
-上传过程：
-本地的文件先要暂存更改；
-然后在上传；
+GIT原理: 
+本地文件夹--add--到本地暂存区--commit--再提交到接受区 --push---定期向远程仓库推送保持同步---PULL---回本地
+
+和远程连接可以用密码或者SSH,把生成好的公钥提交到网站,   私钥自己保留, 作为身份验证.
+
+SSH配置
+1、打开git bash。
+2、使用cd ~/.ssh可以查看是否已配置SSH。
+3、执行生成公钥和私钥的命令ssh-keygen -t rsa 并按回车3下（为什么按三下，是因为有提示你是否需要设置密码，如果设置了每次使用Git都会用到密码，一般都是直接不写为空，直接回车就好了）。会在一个文件夹里面生成一个私钥 id_rsa和一个公钥id_rsa.pub。（可执行start ~命令，生成的公私钥在 .ssh的文件夹里面）。
+4、.ssh如果不做特殊处理的话，一般是在C:\Users\Administrator目录下。如果看不到.ssh文件，可以使用ls -ah指令查看隐藏文件夹即可，这是存放秘钥的文件，打开这个文件会看到id_rsa和id_rsa.pub。id_rsa是私钥文件，id_rsa.pub是公钥文件。
+5、执行查看公钥的命令cat ~/.ssh/id_rsa.pub 。 
+
+当使用SSH连接时仓库地址也不同, 需要先删除原来的, 再重新绑定
+git remote rm github   删除github远程连接
+git remote rm gitee   删除gitee远程连接
+
+git remote add github git@github.com:wear99/Python_Study.git    和GITHUB 建立SSH连接
+
+git remote add gitee git@gitee.com:finnesun/Python_Study.git     和gitee建立SSH连接
+
+先要把公钥内容(cat ~/.ssh/id_rsa.pub, 然后复制)添加到github 和 gitee
+ssh -t git@github.com
+ssh -t git@gitee.com
+输入yes
 
 
-…在本地已有文件，需要push到网上，则输入以下命令：
-git remote add origin https://github.com/wear99/Python_Study.git
-git push -u origin master
+
+
+
