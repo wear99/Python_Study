@@ -42,8 +42,8 @@ def old_item():
 
 all_code = []
 
-filename = ['折叠机加工件新编码.xlsx', '各种采购件新编码.xlsx', '滚筒烫平机加工件新编码.xlsx']
-patch = 'E:\\Python Study\\excel处理\\xlsx\\'
+filename = ['折叠机加工件新编码.xlsx', '各种采购件新编码.xlsx', '滚筒烫平机加工件新编码.xlsx','OEM&集成系统&能效系统加工件新编码.xlsx']
+patch = 'D:\\work\\python\\excel处理\\excel\\'
 file = [patch + x for x in filename]
 
 for wbook in file:

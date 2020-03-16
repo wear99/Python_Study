@@ -26,7 +26,12 @@ python.formatting.provider
 设置里面：
 files.autoGuessEncoding
 
+settings.json
+"python.formatting.provider": "yapf",
+"editor.formatOnPaste": true,
+"editor.formatOnType": true,
+"python.linting.pylintArgs": [
+        "--generate-members"
+]
 
-在c:user\用户名\新建PIP文件夹，里面新建pip.ini
 
-使用清华镜像网站，避免PIP安装插件时国外的太慢

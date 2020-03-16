@@ -3,3 +3,10 @@ pip install pypiwin32    #win32模块
 pip install yapf   #代码格式化
 
 python -m pip install --upgrade pip   #PIP升级
+
+在c:user\用户名\新建PIP文件夹，里面新建pip.ini
+
+使用清华镜像网站，避免PIP安装插件时国外的太慢
+
+[global]
+index-url = https://pypi.tuna.tsinghua.edu.cn/simple

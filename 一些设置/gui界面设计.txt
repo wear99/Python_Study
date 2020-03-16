@@ -3,3 +3,6 @@
 也可以安装VB6,再装tkinter-designer
 
 会把VB6里面设计的窗体生成python代码
+
+第三方库:
+PySimpleGUI-简单的GUI开发工具
