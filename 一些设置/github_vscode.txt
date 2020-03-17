@@ -52,13 +52,18 @@ SSH配置
 git remote rm github   删除github远程连接
 git remote rm gitee   删除gitee远程连接
 
-git remote add github git@github.com:wear99/Python_Study.git    和GITHUB 建立SSH连接
+
+git remote add origin git@github.com:wear99/Python_Study.git    和GITHUB 建立SSH连接,注意这里用github来代替原来的origin, 所以后续执行命令时注意替换
 
 git remote add gitee git@gitee.com:finnesun/Python_Study.git     和gitee建立SSH连接
 
 先要把公钥内容(cat ~/.ssh/id_rsa.pub, 然后复制)添加到github 和 gitee
-ssh -t git@github.com
-ssh -t git@gitee.com
+ssh  -T git@github.com
+ssh -T git@gitee.com
+显示: Hi wear99! You've successfully authenticated, but GitHub does not provide shell access.
+
+git pull origin master   即可从github中下载
+
 输入yes
 
 

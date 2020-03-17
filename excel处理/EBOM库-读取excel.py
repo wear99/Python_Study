@@ -4,18 +4,15 @@
 import openpyxl as xl
 import json
 
-
 def get_root(wsheet):
     m = 0
     for n in wsheet.rows:
         m += 1
         if m > 10:
             break
-        for root in all_root:
-            if root == n[0].value[0:4]:
-                return '*', n[0].value, 1,n[1].value
-    return '', '', ''
-
+        if n[0].value.upper() in all_root:
+            return n[0].value,n[1].value
+    return '', ''
 
 def get_col(wsheet):
     start_r = 1
@@ -35,7 +32,6 @@ def get_col(wsheet):
             if lv_c and code_c and num_c:
                 return int(lv_c), code_c, num_c, start_r
 
-
 def add_item(wsheet):
     def std(s):
         if s:
@@ -48,29 +44,42 @@ def add_item(wsheet):
         num = float(std(n[num_col].value))
         all_bom[root].append([bom_lv, code, num])
 
-
 filename = ['ZD折叠机.xlsx']
 patch = 'D:\\work\\python\\excel处理\\excel\\'
 file = [patch + x for x in filename]
 
-all_bom = {'index':[]}
-# 产品代码的起头，不包含在内的将不被读取
-all_root = ['C01-', 'C02-', 'C03-', 'C04-',
-            'C05-', 'C06-', 'C07-', 'C08-', 'C09-', ]
+# 所有产品的代码，不包含在内的将不被读取
+all_root = {
+            'C07-0024':'卓越CEF-33-1L-FS折叠堆码机',
+            'C07-0026':'卓越CEF-33-1L-F-FS折叠机堆码机',
+            'C08-0005':'CSJ-150穿梭机',
+            'C07-0020':'卓越CETF-20毛巾折叠机',
+            'C07-0010':'卓越CEF-30-2L折叠机',
+            }
+
+# 尝试读取已存在的all_bom文件，并根据文件内的产品型号删除产品型号列表
+try:
+    with open('all_bom.json', 'r', encoding='utf-8') as fb:
+        all_bom = json.load(fb)
+    for root in all_bom:
+        if root in all_root:
+            del all_root[root]
+except:
+    all_bom = {'index':[]}
+    print('文件不存在，重新建立')
 
 for wbook in file:
+    if not all_root:   #如果all_root为空，就不必执行后续
+        break
     wb = xl.load_workbook(wbook, read_only=True)
     for wsname in wb.sheetnames:
         ws = wb[wsname]
-
         # 查找sheet表内的产品型号
-        lv, root, n,name = get_root(ws)
-
+        root, rootname = get_root(ws)       
         if root and root not in all_bom:
-            all_bom['index'].append([lv,root+' '+name,n])
-            all_bom[root] = [[lv, root, n]]
+            pass
         else:
-            print('{0} 文件的{1} 工作表中未找到产品型号，跳过'.format(wbook, wsname))
+            print('{0} 文件的{1} 工作表中未找到产品或已存在'.format(wbook, wsname))
             continue
 
         # 查找层次,编码,数量 对应的列数,及起始行数
@@ -80,7 +89,10 @@ for wbook in file:
         else:
             print('{0} 文件的{1} 工作表中未找到物料属性表头，跳过'.format(wbook, wsname))
             continue
-        # 添加物料到all_bom
+        # 添加物料到all_bom 
+        del all_root[root]
+        all_bom['index'].append(['*',root+' '+ rootname,1])
+        all_bom[root] = [['*', root, 1]]       
         add_item(ws)
 
 print('已读取的BOM数量：',len(all_bom))

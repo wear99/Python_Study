@@ -1,14 +1,15 @@
-# 读取生成好的物料库json文件,以供查询
+# 读取生成好的物料库json文件,以供查询,可以使用通配符
 # -*-coding=utf-8-*-
 
 import json
+import re
 import openpyxl as xl
 
 def find(s):
     rst_code.clear()
     for item in all_code:
         for m in item:
-            if m and s in m:
+            if m and s.search(m):
                 rst_code.append(item)
 
 def rst_prt():
@@ -23,16 +24,17 @@ def rst_prt():
     else:
         print('物料查找不存在！')
 
-
-
-with open('E:\\Python Study\\all_code.json', 'r', encoding='utf-8') as f:
+with open('all_code.json', 'r', encoding='utf-8') as f:
     all_code = json.load(f)
 
 rst_code = []
 while True:
     x = input('请输入要查询的物料编码或图号：\n').upper().strip()
-    if x == 'q' or x == 'Q':
+    
+    if x in ('q','Q','0'):
         break
     elif x:
+        x=x.replace('*','.*')
+        x=re.compile(x)
         find(x)
         rst_prt()

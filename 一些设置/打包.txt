@@ -6,15 +6,15 @@
 
 步骤:
 关键点就一个：要在虚拟环境里安装pyinstaller
-#建立虚拟环境
+	#建立虚拟环境
 pipenv install
-#进入虚拟环境（上一步可省略,因为没有虚拟环境的话会自动建立一个）
+	#进入虚拟环境（上一步可省略,因为没有虚拟环境的话会自动建立一个）
 pipenv shell
-#安装模块
+	#安装模块
 pip install openpyxl.............
-#打包的模块也要安装
+	#打包的模块也要安装
 pip install pyinstaller
-#开始打包
+	#开始打包
 pyinstaller -F E:\test\url_crawler.py
 
 作者：呆呆
