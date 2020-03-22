@@ -101,7 +101,7 @@ def rst_bom_prt(x):
 
 def find_code(x):
     rst_code.clear()
-    for item in all_code:
+    for item in list(all_code.values()):
         for m in item:
             if m and x.search(m):
                 rst_code.append(item)
@@ -141,20 +141,22 @@ rst_code = []
 rst_bom = []
 rst_son = []
 
-with open('all_code.json', 'r', encoding='utf-8') as fc:
-    all_code = json.load(fc)
+try:
+    with open('all_code.json', 'r', encoding='utf-8') as fc:
+        all_code = json.load(fc)
 
-with open('all_bom.json', 'r', encoding='utf-8') as fb:
-    all_bom = json.load(fb)
+    with open('all_bom.json', 'r', encoding='utf-8') as fb:
+        all_bom = json.load(fb)
 
-print('code库记录: ', len(all_code))
-print('bom库记录: %d ,已读取的产品有:' % len(all_bom))
+    print('code库记录: ', len(all_code))
+    print('bom库记录: %d ,已读取的产品有:' % len(all_bom))
 
-
-for root in all_bom['index']:
-    print(root[1])
-    xx = root[1].split(" ")  
-    all_code.append([xx[0]+'-'+xx[1]+'-'])   # 把BOM表中的产品名写入code表
+    for root in all_bom['index']:
+        print(root[1])
+        xx = root[1].split(" ")
+        all_code.append([xx[0] + '-' + xx[1] + '-'])  # 把BOM表中的产品名写入code表
+except:
+    print('读取失败')
 
 while True:
     x = input('\n请输入要查询的物料编码或图号： ').upper().strip()
