@@ -1,6 +1,12 @@
 {
     "python.formatting.provider": "yapf",
-    "editor.formatOnPaste": true,
+    "editor.formatOnPaste": false,
     "editor.formatOnType": true,
-    
+    "python.autoComplete.addBrackets": true,
+    "editor.suggest.snippetsPreventQuickSuggestions": false,
+    "editor.minimap.enabled": false,
+    "editor.minimap.maxColumn": 100,
+    "editor.wordWrapColumn": 100,
+    "editor.wrap.line.length": 100,
+    "python.analysis.completeFunctionParens": true,
 }

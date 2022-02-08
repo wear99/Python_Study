@@ -13,6 +13,7 @@
 # 4.23 将designbom改为按小批物料格式存储，新增designcode库，存储15R，16R，24R，28R及没编码物料
 # 4.25 完善数据操作,全部完成后再提交,如果出错则回滚
 # 4.26 将读取BOM合并,并可以选择对已有的层次关系是否覆盖还是跳过
+# 4.28 增加图纸路径读取保存,物料根据图号打开对应的图纸
 
 import tkinter as tk
 from tkinter import ttk
@@ -22,7 +23,8 @@ from tkinter.simpledialog import askstring, askinteger, askfloat
 import openpyxl as xl
 from openpyxl.styles import Font
 from openpyxl.styles import PatternFill
-import json,sqlite3,re
+import json, sqlite3, re
+from os import path,listdir,startfile
 
 from datetime import datetime
 # -----------------弹出窗体GUI程序---------------
@@ -144,6 +146,191 @@ class POP_readcode():
         self.lab_pop_update.set(msg)        
         return rst_code
 
+class edit_root_path():    
+    def __init__(self, parent,root):
+        self.pop = tk.Toplevel(root)
+        self.parent = parent
+        
+        self.pop.title('修改产品图纸位置')
+        self.pop.geometry('500x400')
+        self.pop.transient(root)
+        self.pop.grab_set()  # 聚焦在此窗口上，其它窗口不可用
+        self.setpag()        
+        self.menu_tree()
+        #self.menu_bar()
+        self.get_drawnum()
+        self.path_tree_out()        
+
+    def setpag(self,):
+        #fm1 = ttk.Frame(self.pop,height = 25)
+        fm2 = ttk.Frame(self.pop, height=25)
+        fm3 = ttk.Frame(self.pop)
+        #fm1.pack()
+        fm2.pack()
+        fm3.pack(expand='yes', fill='both')
+        
+        self.path_lab_1 = tk.StringVar()
+        ttk.Label(fm2, textvariable=self.path_lab_1,font=("微软雅黑", 12,'italic')).pack(pady=5)
+        
+        self.tev = ttk.Treeview(fm3, show='headings',columns=('1', '2', '3'),selectmode='browse')
+        self.tev.heading('1', text='产品')
+        self.tev.heading('2', text='图纸目录')
+        self.tev.heading('3', text='图纸数量')
+        self.tev.column('#0', width=40, anchor='w')
+        self.tev.column('1', width=100, anchor='w')
+        self.tev.column('2', width=400, anchor='w')
+        self.tev.column('3', width=40, anchor='w')
+        
+        self.vbar = ttk.Scrollbar(fm3,
+                                  orient='vertical',
+                                  command=self.tev.yview)
+        self.tev.configure(yscrollcommand=self.vbar.set)
+        self.vbar.pack(side='right', fill='y')        
+
+        self.tev.pack(expand='yes', fill='both')
+        self.tev.bind('<Button-3>', self.right_click)
+
+    def right_click(self, event):
+        iid = self.tev.identify_row(event.y)   # 返回事件发生时鼠标坐标对应的行
+        # 如果鼠标所在是空,则不执行右键动作
+        if iid:
+            self.tev.selection_set(iid)    # 当右键时选中目前鼠标所在的行
+            self.name = self.tev.item(self.tev.selection(), 'values')[0]
+            self.pathdir = self.tev.item(self.tev.selection(), 'values')[1]
+            self.menu1.post(event.x_root, event.y_root)
+    def menu_bar(self,):   # 定义菜单栏   
+        m_bar = tk.Menu(self.pop)  # 创建菜单组
+        m_bar.add_command(label="新增目录", command=lambda: self.edit_path(type='ADD'))      
+
+        self.pop.config(menu=m_bar)  # 把mbar菜单组 配置到窗体;
+    def menu_tree(self,):  # 定义了treeview处的右键菜单内容，但菜单弹出要由post来调用
+        self.menu1 = tk.Menu(self.pop, tearoff=0)
+        self.menu1.add_command(
+            label="新增目录", command=lambda:self.edit_path(type='ADD'))
+        self.menu1.add_separator()
+        
+        self.menu1.add_command(
+            label="修改目录", command=lambda: self.edit_path(type='CHANGE'))
+        self.menu1.add_separator()
+        self.menu1.add_command(
+            label="删除目录", command=lambda: self.edit_path(type='DEL'))
+        self.menu1.add_separator()
+        self.menu1.add_command(
+            label="重新搜索目录",command=lambda:self.edit_path(type='UPDATE'))                
+        self.menu1.add_separator()
+        self.menu1.add_command(label="导出列表")
+    def get_drawnum(self,):
+        self.draw_num = {}
+        for key in path_root:
+            rst = find_db('remark', key, 'drawPATH')
+            self.draw_num[key] = len(rst)
+            
+    def path_tree_out(self,):
+        for item in self.tev.get_children():  # 对treeview进行清空
+            self.tev.delete(item)
+        if path_root:
+            for key, item in path_root.items():
+                self.tev.insert('', 'end', values=(key, item,self.draw_num[key]))        
+
+    def edit_path(self, type='ADD'):    # 编辑目录,包含新增,更改,删除,更新 4种模式
+        def get_name():
+            name = askstring('',"请输入产品信息：")
+            name = name.upper().strip()  # 转大写，去收尾空格
+            name = name.replace('\n', '')  # 去掉换行符
+            if name in path_root:
+                tk.messagebox.showerror('产品信息已存在，请重新输入！')
+            else:
+                return name
+
+        def get_path():
+            pathdir = tk.filedialog.askdirectory(title='选择图纸文件夹')
+            for item in path_root.values():
+                if pathdir in item:
+                    tk.messagebox.showerror('产品文件夹已存在，请重新选择！')
+                else:
+                    return pathdir
+        rst={}
+        type=type.upper()
+        if type=='ADD':   # 新增模式下,需输入name,选择目录     
+            name = get_name()
+            pathdir = get_path()
+        elif type == 'CHANGE':  #更改模式:name
+            name = self.name
+            if name:
+                pathdir = get_path()
+        elif type == 'UPDATE':
+            name = self.name
+            pathdir = self.pathdir
+        elif type == 'DEL':
+            name = self.name
+            pathdir = self.pathdir
+            
+        if not (name and pathdir):
+            return
+
+        if type in ('ADD','UPDATE','CHANGE'):   #扫描指定的文件夹
+            rst = scan_path(pathdir)
+            if 'error' in rst:
+                self.path_lab_1.set(rst['error'])
+                return
+            elif 'path' in rst:
+                rst['path']=[tuple(x+[name]) for x in rst['path']]                
+                num = len(rst['path'])
+                self.draw_num[name] = num
+                t1 = name + ' 中读取的图纸数量：' + str(num) + ',已导入数据库'
+
+        if type in ('DEL','UPDATE','CHANGE'):   # 删除保存的文件夹和所有图纸路径
+            rst_1 = self.remove_path_db(name)
+            if 'error' in rst_1:
+                self.path_lab_1.set(rst_1['error'])
+                return
+            else:
+                del path_root[name]
+                
+        if type in ('ADD','UPDATE','CHANGE') and 'path' in rst:   # 写入新的文件夹和所有图纸路径
+            rst = self.update_path_db(name, pathdir, rst['path'])                    
+            if 'error' in rst:
+                self.path_lab_1.set(rst['error'])
+                return
+            else:
+                path_root[name] = pathdir                    
+                self.path_lab_1.set(t1)
+        
+        if type == 'ADD':
+            self.tev.insert('', 'end', values=(name, pathdir, num))
+        elif type in ('CHANGE','UPDATE'):
+            self.tev.set(self.tev.selection(), column='2', value=pathdir)
+            self.tev.set(self.tev.selection(), column='3', value=num)
+        elif type == 'DEL':
+            self.tev.delete(self.tev.selection())
+
+        #self.path_tree_out()
+
+    def remove_path_db(self, name=''):  # 删除数据库中指定的目录
+        rst={}
+        old_1 = (name, 'old')
+        old_2=('PATH','path')
+        try:
+            remove_db(old1=old_1, col1='code',old2=old_2,col2='remark',sheet='root')
+            remove_db(old1=old_1, col1='remark', sheet='drawPATH')
+            conn.commit()
+        except Exception as ex:
+            conn.rollback()
+            rst['error']= '删除时出错：' + str(ex)
+        return rst
+
+    def update_path_db(self,root, filedir, file_path):
+        rst={} 
+        try:
+            insert_db(((root,filedir,'PATH'),),'root')
+            insert_db(file_path, 'drawPATH')
+            conn.commit()
+        except Exception as ex:
+            conn.rollback()
+            rst['error'] = '写入失败: ' + str(ex)
+            
+        return rst
+
 # -----------------主窗体GUI程序---------------
 class main_GUI():   # 把整个GUI程序 封装在一个类里面
     def __init__(self,):    # 窗体定义，基本函数，其它的都靠它来触发
@@ -157,7 +344,7 @@ class main_GUI():   # 把整个GUI程序 封装在一个类里面
         #ttk.Style().theme_use('clam')   #('clam','alt','default','classic')
         ttk.Style().configure("Treeview", background="#383838", 
                 fieldbackground="black", foreground="white")
-        
+
     def setpag(self,):    # 把界面内容放在一个一起了，便于修改
         fm0 = ttk.Frame(self.root)
         fm1 = ttk.Frame(self.root)
@@ -166,8 +353,7 @@ class main_GUI():   # 把整个GUI程序 封装在一个类里面
         fm1.pack()
         fm2.pack(padx=10, expand='yes', fill='both')
 
-        self.eny_t = tk.StringVar()
-        #self.target=tk.StringVar()
+        self.eny_t = tk.StringVar()        
         self.en1 = ttk.Entry(fm0, width=30, textvariable=self.eny_t)
         self.en1.pack(padx=20, pady=10, side='left')
 
@@ -176,28 +362,16 @@ class main_GUI():   # 把整个GUI程序 封装在一个类里面
         #对于和事件绑定的函数,会自动给个event参数,所有在定义时要加上event参数
         ttk.Button(fm0,
                    text='设计物料查询',command=lambda:self.find_code_GUI('DESIGN')
-                   ).pack(
-                       padx=20, pady=10, side='right')
+                   ).pack(padx=20, pady=10, side='right')
 
         ttk.Button(fm0,
-                   text='小批物料查询',
-                   command=self.en1_enter).pack(
+                   text='小批物料查询',command=self.en1_enter).pack(
                        padx=20, pady=10, side='right')
                        
         self.lab_r = tk.StringVar()
         ttk.Label(fm2, textvariable=self.lab_r,font=("微软雅黑", 12,'italic')).pack(pady=5)
         
-        self.tev = ttk.Treeview(fm2, columns=('1', '2', '3', '4', '5','6','7','8'))        
-        
-        self.tev.heading('#0', text='层次/序号')
-        self.tev.heading('1', text='编码')
-        self.tev.heading('2', text='图号')
-        self.tev.heading('3', text='名称')
-        
-        self.tev.column('#0', width=120, anchor='w', stretch='no')
-        self.tev.column('1', width=100, anchor='w', stretch='no')
-        self.tev.column('2', width=100, anchor='w', stretch='no')
-        self.tev.column('3', width=300, anchor='w',stretch='no')        
+        self.tev = ttk.Treeview(fm2, columns=('1', '2', '3', '4', '5','6','7','8'),selectmode='browse')
 
         self.vbar = ttk.Scrollbar(fm2,
                                   orient='vertical',
@@ -212,23 +386,21 @@ class main_GUI():   # 把整个GUI程序 封装在一个类里面
 
         self.tev.pack(expand='yes', fill='both')
         self.tev.bind('<Button-3>', self.R_click_tree)
-#-----------------以下窗口动作触发------------------------------
+
     def menu_en1(self,):        # 输入框的右键菜单
         def onpaste(event=None):
             self.en1.event_generate('<<Paste>>')
-
         def copy(event=None):
             self.en1.event_generate("<<Copy>>")
-
         def cut(event=None):
             self.en1.event_generate("<<Cut>>")
 
-        self.menu = tk.Menu(self.root, tearoff=0)
-        self.menu.add_command(label="剪切", command=cut)
-        self.menu.add_separator()
-        self.menu.add_command(label="复制", command=copy)
-        self.menu.add_separator()
-        self.menu.add_command(label="粘贴", command=onpaste)
+        self.menu_eny1 = tk.Menu(self.root, tearoff=0)
+        self.menu_eny1.add_command(label="剪切", command=cut)
+        self.menu_eny1.add_separator()
+        self.menu_eny1.add_command(label="复制", command=copy)
+        self.menu_eny1.add_separator()
+        self.menu_eny1.add_command(label="粘贴", command=onpaste)
 
     def menu_tree(self,):    # 定义了treeview处的右键菜单内容，但菜单弹出要由post来调用
         def tree_copy(x):
@@ -243,32 +415,37 @@ class main_GUI():   # 把整个GUI程序 封装在一个类里面
             label="复制图号", command=lambda: tree_copy(self.tree_draw))
         self.menu1.add_separator()
         self.menu1.add_command(
-            label="在小批中反查BOM", command=lambda: self.find_father_GUI(self.tree_code))
+            label="在小批中反查BOM", command=lambda: self.find_parent_GUI(self.tree_code))
         self.menu1.add_separator()
         self.menu1.add_command(
             label="在小批中查询子零件", command=lambda: self.find_child_GUI(self.tree_code))
         self.menu1.add_separator()
         self.menu1.add_command(
-            label="在设计BOM中反查BOM", command=lambda: self.find_father_GUI(self.tree_code,'DESIGN'))
+            label="在设计BOM中反查BOM", command=lambda: self.find_parent_GUI(self.tree_code,'DESIGN'))
         self.menu1.add_separator()
         self.menu1.add_command(
             label="在设计BOM中查询子零件", command=lambda: self.find_child_GUI(self.tree_code,'DESIGN'))
         self.menu1.add_separator()
         self.menu1.add_command(label="在当前BOM中查询", command=self.find_treebom_GUI)
+        self.menu1.add_separator()
+        self.menu1.add_command(label="打开图纸", command=self.open_draw_GUI)        
         self.menu1.add_separator()        
         self.menu1.add_command(label="导出列表",command=self.tree_save)
-        
+
     def menu_bar(self,):   # 定义菜单栏   
         m_bar = tk.Menu(self.root)  # 创建菜单组
 
         m_file = tk.Menu(m_bar, tearoff=0)  # 创建2级菜单组
         m_file.add_separator()
-        m_file.add_command(label='导入ERP BOM',command=lambda: self.read_bom_GUI(type='BATCH'))
+        m_file.add_command(label='导入ERP BOM',command=lambda: self.read_bom_GUI(tp='BATCH'))
         m_file.add_separator()        
-        m_file.add_command(label='导入设计BOM',command=lambda: self.read_bom_GUI(type='DESIGN'))
+        m_file.add_command(label='导入设计BOM',command=lambda: self.read_bom_GUI(tp='DESIGN'))
         m_file.add_separator()
         m_file.add_command(label='更新物料库',command=self.read_code_GUI)
-        m_file.add_separator()        
+        m_file.add_separator()
+        m_file.add_command(
+            label='临时读取设计BOM', command=lambda: self.read_bom_GUI(tp='DESIGN',type1='TEMP'))
+        m_file.add_separator()
         # mabr上添加一个标签,链接到file_m
         m_bar.add_cascade(label='读取EXCEL文件', menu=m_file)
 
@@ -298,18 +475,30 @@ class main_GUI():   # 把整个GUI程序 封装在一个类里面
                                    indicatoron=False, command=lambda: self.find_child_GUI(root_b.get(),db='DESIGN'))
             m_view.add_separator()    
 
-        m_bar.add_cascade(label=' 查看已导入的小批BOM ', menu=m_view)        
+        m_bar.add_cascade(label=' 查看导入的BOM ', menu=m_view)        
+
+        m_path = tk.Menu(m_bar, tearoff=0)
+        draw_p = tk.StringVar()
+        for key, item in path_root.items():
+            m_path.add_radiobutton(label=key, value=item, variable=draw_p,
+                                   indicatoron=False, command=lambda: startfile(draw_p.get()))
+            m_path.add_separator()    
+        m_path.add_separator()
+        m_path.add_command(label='编辑产品路径', command=self.edit_path_GUI)
+        
+        m_bar.add_cascade(label='产品路径', menu=m_path)
 
         m_tool = tk.Menu(m_bar, tearoff=0)
         m_tool.add_separator()
-        m_tool.add_command(label='更新Excel编码', command=self.check_excel_GUI)        
-        
-        m_bar.add_cascade(label='工具', menu=m_tool)
+        m_tool.add_command(label='检查Excel编码', command=lambda:self.check_excel_GUI(tp='CHECK'))
+        m_tool.add_separator()
+        m_tool.add_command(label='添加部件数量', command=lambda:self.check_excel_GUI(tp='QTY'))
+        m_bar.add_cascade(label='EXCEL工具', menu=m_tool)
 
         self.root.config(menu=m_bar)  # 把mbar菜单组 配置到窗体;
-      
+#-----------------以下窗口动作触发------------------------------      
     def R_click_en1(self, event):   # 输入框绑定动作
-        self.menu.post(event.x_root, event.y_root)   # 在事件坐标处,弹出对应的菜单
+        self.menu_eny1.post(event.x_root, event.y_root)   # 在事件坐标处,弹出对应的菜单
 
     def R_click_tree(self, event):   # 鼠标右键绑定的动作，该程序通过前面的bind 和右键绑定在一起
         iid = self.tev.identify_row(event.y)   # 返回事件发生时鼠标坐标对应的行
@@ -318,10 +507,12 @@ class main_GUI():   # 把整个GUI程序 封装在一个类里面
             self.tree_code = self.tev.item(self.tev.selection(), 'values')[0]
             self.tree_draw = self.tev.item(self.tev.selection(), 'values')[1]
             name = self.tev.item(self.tev.selection(), 'values')[2]
+            self.x_root = event.x_root
+            self.y_root = event.y_root
             if self.tree_code == '-':
                 self.tree_code = self.tree_draw + name
             else:
-                self.tree_code = self.tree_code.replace('-old', '')
+                self.tree_code = self.tree_code.replace('old', '')
             self.menu1.post(event.x_root, event.y_root)
 
     def en1_enter(self, event=None):  #和事件绑定的函数,在事件触发时,会自动给一个event参数,所有定义时必须加上
@@ -346,7 +537,7 @@ class main_GUI():   # 把整个GUI程序 封装在一个类里面
         else:
             self.lab_r.set(str(x) + ' 在{0}库的未找到相关信息:'.format(txt[db]))
 
-    def find_father_GUI(self, x,db='BATCH'):        
+    def find_parent_GUI(self, x,db='BATCH'):        
         rst = find_parent_bom(x,db)
         if 'bom' in rst:
             self.lab_r.set(str(x)+' 的反查结果:')
@@ -362,21 +553,22 @@ class main_GUI():   # 把整个GUI程序 封装在一个类里面
         else:
             self.lab_r.set('%s 物料没有子零件'%str(x))
 
-    def read_bom_GUI(self,type='BATCH'):
-        file_name = tk.filedialog.askopenfilename(title='打开BOM文件',
-                                                  filetypes=[('xlsx', '*.xlsx'),])        
-        rst = read_design_BOM(file_name)
+    def read_bom_GUI(self,tp='BATCH',type1=''):
+        file_name = tk.filedialog.askopenfilename(title='打开BOM文件',filetypes=[('xlsx', '*.xlsx'),])        
+        rst = read_design_BOM(file_name,type=tp)
         if 'error' in rst:
             self.lab_r.set(rst['error'])
+        elif 'itemerror' in rst:
+            self.lab_r.set('表格内有如下错误：')
+            self.tree_out(rst['itemerror'])
         elif 'bom' in rst:
-            wr2 = tk.messagebox.askquestion(message='对已存在的BOM层次,进行覆盖还是跳过?')
-            if wr2=='yes':
-                mode='W'
-            else:
-                mode='R'
-            rst_t1 = update_to_bom_db(rst['bom'], db=type,mode=mode)    
+            if type1!='TEMP':
+                wr2 = tk.messagebox.askquestion(message='对已存在的BOM层次,进行覆盖还是跳过?')
+                if wr2=='yes':
+                    type1 = 'W'
+            root,rst_t1 = update_to_bom_db(rst['bom'], db=tp, type=type1)
+            self.find_child_GUI(root,db=tp)
             self.lab_r.set(rst_t1)
-            self.tree_out(rst['bom'])           
 
     def read_cost_GUI(self,):
         file_name = tk.filedialog.askopenfilename(title='打开成本文件',
@@ -385,6 +577,9 @@ class main_GUI():   # 把整个GUI程序 封装在一个类里面
         rst = read_design_BOM(file_name,type='COST')
         if 'error' in rst:
             self.lab_r.set(rst['error'])
+        elif 'itemerror' in rst:
+            self.lab_r.set('表格内有如下错误：')
+            self.tree_out(rst['itemerror'])
         elif 'bom' in rst:            
             rst1 = update_to_cost_db(rst['bom'])
             if 'error' in rst1:
@@ -396,21 +591,23 @@ class main_GUI():   # 把整个GUI程序 封装在一个类里面
     def read_code_GUI(self,):
         self.code_mod = []
         popcode = POP_readcode(self, self.root)
-
         self.root.wait_window(popcode.pop)
 
         if self.code_mod:
             self.tree_out(self.code_mod,type='CODE')
 
-    def check_excel_GUI(self,):   #查找excel表编码
+    def check_excel_GUI(self,tp='CHECK'):   #查找excel表编码
         file_name = tk.filedialog.askopenfilename(title='打开BOM文件',
                                                   filetypes=[('xlsx', '*.xlsx'),])
         
-        rst = read_design_BOM(file_name,type='CHECK')
+        rst = read_design_BOM(file_name,type=tp)
         if 'error' in rst:
             self.lab_r.set(rst['error'])
+        elif 'itemerror' in rst:
+            self.lab_r.set('表格内有如下错误：')
+            self.tree_out(rst['itemerror'])
         else:
-            self.lab_r.set('更新完成，改动的编码如下：')
+            self.lab_r.set('更新完成，改动如下：')
             self.tree_out(rst['bom'])
 
     def find_treebom_GUI(self,):
@@ -427,39 +624,25 @@ class main_GUI():   # 把整个GUI程序 封装在一个类里面
         # 物料格式[0层次,1编码,2图号,3名称,4日期]
         # 成本格式[0层次,1编码,2图号,3名称,4材料成本,5人工成本,6管理成本,7总成本]
         #self.lab_r.set(self.target)
-        def set_tree(type):
-            if 'CODE' in type:
-                self.tev.heading('4', text='材料')
-                self.tev.heading('5', text='重量')
-                self.tev.heading('6', text='备注')
-                if 'COST' in type: 
-                    self.tev.heading('4', text='材料成本')
-                    self.tev.heading('5', text='人工成本')
-                    self.tev.heading('6', text='管理费用')
-                    self.tev.heading('7', text='合计成本')
-                    self.tev.heading('8', text='更新日期')
-                    
-                    self.tev.column('4', width=60, anchor='w', stretch='no')
-                    self.tev.column('5', width=60, anchor='w', stretch='no')
-                    self.tev.column('6', width=60, anchor='w', stretch='no')
-                    self.tev.column('7', width=60, anchor='w', stretch='no')
-                    self.tev.column('8', width=80, anchor='w', stretch='no')                    
+        def set_tree_title(type):
+            tree_title = {
+            'CODE': ('序号', '编码', '图号', '名称', '材料', '重量', '备注',),
+            'CODE-COST': ('序号', '编码', '图号', '名称', '材料成本', '人工成本', '管理费用', '单件成本', '更新日期',),
+            'BOM': ('序号', '编码', '图号', '名称', '数量', '部件数量', '材料', '重量', '备注',),
+            'BOM-COST': ('序号', '编码', '图号', '名称', '数量', '部件数量', '单件成本', '合计成本', '更新日期',),
+            }
+            title_width = {
+                '序号':100,'编码':100, '图号':100, '名称':250, '材料':80, '重量':60,'数量':40, '部件数量':40, '备注':80,'材料成本':50, '人工成本':50, '管理费用':50, '单件成本':60,'合计成本':60, '更新日期':150,
+            }
+            cols = (str(x) for x in range(1, len(tree_title[type]) + 1))           
 
-            elif 'BOM' in type:
-                self.tev.heading('4', text='数量')
-                self.tev.heading('5', text='总数量')
-                self.tev.heading('6', text='材料')
-                self.tev.heading('7', text='备注')
-
-                self.tev.column('4', width=50, anchor='w', stretch='no')
-                self.tev.column('5', width=50, anchor='w', stretch='no')
-                self.tev.column('6', width=100, anchor='w', stretch='no')
-                self.tev.column('7', width=80, anchor='w', stretch='no')
-                self.tev.column('8', width=80, anchor='w', stretch='no')
-                if 'COST' in type: 
-                    self.tev.heading('6', text='单件成本')
-                    self.tev.heading('7', text='合计成本')
-                    self.tev.heading('8', text='更新日期')
+            if type in tree_title:
+                self.tree_col=tree_title[type]
+                for n, name in enumerate(tree_title[type]):
+                    if n == 0:
+                        n='#'+str(n)
+                    self.tev.heading(str(n), text=name)
+                    self.tev.column(str(n), width=title_width[name])
                     
         def set_tags(item1):
             s = self.tev.item(item1, 'values')
@@ -479,24 +662,25 @@ class main_GUI():   # 把整个GUI程序 封装在一个类里面
                 self.tev.item(p3, open=True)
                 self.tev.item(p4, open=True)
 
-        set_tree(type)
         self.tree_bom = bom
-        self.tree_type= type
+        self.tree_type = type
+        self.tree_col=[]
         for item in self.tev.get_children():  # 对treeview进行清空
             self.tev.delete(item)
+
+        set_tree_title(type)
         rst=[]
         lv = {0: ''}
         a = bom[0][0] - 1
-        lv_n = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+        order_n = [0, 0, 0, 0, 0, 0, 0, 0, 0]
 
         self.tev.tag_configure('tar', background='blue')
-        for key in bom:            
-            lv_n[key[0] + 1:8] = 0,0,0,0,0,0,0,0
-            lv_n[key[0]] += 1
+        for key in bom:
+            order_n[key[0] + 1:8] = 0,0,0,0,0,0,0,0
+            order_n[key[0]] += 1
 
             i = key[0] - a
-            lv[i] = self.tev.insert(lv[i - 1],'end',text='+' * key[0] + ' '+str(lv_n[key[0]]),
-                                        values=key[1:])
+            lv[i] = self.tev.insert(lv[i - 1],'end',text=str(order_n[key[0]]),values=key[1:])
             if tar:
                 set_tags(lv[i])
             elif i == 1:
@@ -515,33 +699,71 @@ class main_GUI():   # 把整个GUI程序 封装在一个类里面
         elif tar:
             t1='%s 在列表中未找到'% tar
             self.lab_r.set(t1)                              
-            
+
+    def tree_save(self,):
+        file = tk.filedialog.asksaveasfilename(defaultextension=".xlsx",title='保存文件',
+                                                  filetypes=[('xlsx', '*.xlsx')])
+        rst = save_to_excel(file, self.tree_bom, self.lab_r.get(),self.tree_col)
+        if 'error' in rst:
+            self.lab_r.set(rst['error'])
+        else:
+            self.lab_r.set('已成功导出到文件：' + file)
+
     def tree_add_cost(self,):  # 在当前显示的物料后添加成本数据
         def parent_cost():  #对装配体成本为0的进行重新计算
-            for n, item in enumerate(cost_bom[::-1]):                
-                if item[6] == 0 and (item[1].startswith('24R') or item[1].startswith('28R')):
-                    tot = 0
-                    m=len(cost_bom)-n
-                    for item1 in cost_bom[m:]:
-                        if item1[0] == item[0] + 1:
-                            tot+=item1[7]
-                        elif item1[0] <= item[0]:
-                            break
-                    cost_bom[m-1]=item[:6]+(round(tot,2),round(tot * item[5],2))+(day+' 子件计算',)
+            cost_lv = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0}
+            complete_lv={1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1}
+            for n, item in enumerate(cost_bom[::-1]):
+                x=0
+                if (item[1]=='-' or item[1][:3] in ('24R','28R')) and cost_lv[item[0] + 1] != 0:
+                    c = round(cost_lv[item[0] + 1],2)
+                    ct = round(c * item[5], 2)
+                    m = len(cost_bom) - n
+                    if item[6] == '':  # 当原成本为0时
+                        if complete_lv[item[0] + 1]:
+                            ss = ''
+                        else:
+                            ss=' (*)'
+                        cost_bom[m - 1] = item[:6] + (c, ct) + ('子件计算'+ss,)
+                        x=c*item[4]
+                    elif abs(item[6] - cost_lv[item[0] + 1]) > 1:  #原成本存在时和子件计算成本进行比较
+                        if complete_lv[item[0] + 1]:
+                            ss = ''
+                        else:
+                            ss='(*) '
+                        cost_bom[m - 1] = item[:6] + (c, ct) + (ss+item[8] + '：' + str(item[6]),)
+                        x = c * item[4]                    
+                            
+                if x:
+                    cost_lv[item[0]] += x
+                elif isinstance(item[6], (int, float)):
+                    cost_lv[item[0]] += item[6] * item[4]
+                else:   #当有零件无成本时,标记该层次的成本不完整
+                    complete_lv[item[0]]=0
 
-        cost_bom=[]
+                for i in range(item[0] + 1, 8):
+                    cost_lv[i] = 0
+                    complete_lv[i]=1
+
+        def total_cost():
+            tot_m=tot_l=tot_e=0
+            for item in cost_bom:
+                if item[0] == 2:
+                    tot_m+=item[7]
+                    
+        cost_bom = []        
         if self.tree_type=='BOM':
             for item in self.tree_bom:
                 if item[1] in all_cost:
                     tot = all_cost[item[1]][3]
                     d=all_cost[item[1]][4]
-                    item = item[:6] + (round(tot,2), round(tot * item[5],2),d)
+                    item = tuple(item[:6]) + (round(tot,2), round(tot * item[5],2),d)
                 else:
-                    item = item[:6] + (0,0)
+                    item = tuple(item[:6]) + ('','')
                 cost_bom.append(item)
-            parent_cost()    
+            parent_cost()
 
-            self.tree_out(cost_bom,'BOM-COST')
+            self.tree_out(cost_bom,type='BOM-COST')
         elif self.tree_type == 'CODE':
             for item in self.tree_bom:
                 if item[1] in all_cost:
@@ -551,12 +773,13 @@ class main_GUI():   # 把整个GUI程序 封装在一个类里面
                     ct = all_cost[item[1]][3]
                     d=all_cost[item[1]][4]
                 else:
-                    cm=ct=cl=ce=d=0
+                    cm=ct=cl=ce=d=''
                 item = item[:4] + (ct,cm,cl,ce,d)
                 cost_bom.append(item)
-            self.tree_out(cost_bom,'CODE-COST')            
+            self.tree_out(cost_bom, type='CODE-COST')
+        self.lab_r.set('物料成本查询如下 ( * 表示子件成本不完整):')            
 
-    def view_changed_cost(self,):
+    def view_changed_cost(self,): # 查看变动的成本
         rst = load_old_cost()
         if rst:
             self.lab_r.set('成本变动过的物料如下:')
@@ -570,16 +793,38 @@ class main_GUI():   # 把整个GUI程序 封装在一个类里面
             self.lab_r.set(rst['error'])
         elif 'change' in rst:
             self.tree_out(rst['change'], 'CODE-COST')
-            
-    def tree_save(self,):
-        file = tk.filedialog.asksaveasfilename(defaultextension=".xlsx",title='保存文件',
-                                                  filetypes=[('xlsx', '*.xlsx')])
-        rst = save_to_excel(file, self.tree_bom, self.lab_r.get())
-        if 'error' in rst:
-            self.lab_r.set(rst['error'])           
-        else:
-            self.lab_r.set('已成功导出到文件：' + file)           
 
+    def edit_path_GUI(self,):
+        edit_root_path(self, self.root)
+        #self.root.wait_window(p.pop)
+
+    def open_draw_GUI(self,):
+        def open_file(filepath):
+            try:
+                startfile(filepath)
+            except Exception as ex:
+                self.lab_r.set(str(ex))
+
+        def meun_drawpath():
+            self.menu_path_sect = tk.Menu(self.root, tearoff=0)
+            path_1 = tk.StringVar()
+            for item in rst:
+                self.menu_path_sect.add_radiobutton(label=item[1], value=item[1], variable=path_1,
+                                   indicatoron=False, command=lambda: open_file(path_1.get()))
+                self.menu_path_sect.add_separator()
+
+        rst = {}        
+        if self.tree_draw != '-' and 'GB' not in self.tree_draw:
+            rst = find_db('draw', self.tree_draw, 'drawPATH')
+            if rst:
+                if len(rst) == 1:
+                    open_file(rst[0][1])
+                else:
+                    meun_drawpath()
+                    self.menu_path_sect.post(self.x_root, self.y_root)
+            else:
+                self.lab_r.set('没有找到对应图纸')
+       
 #-----------------以下主程序函数------------------------------ 
 def find_parent_bom(f,db='BATCH'):    # 根据编码反查使用的BOM
     # 在字典每个值的里面查找编码,找到后将对应的key,再作为编码进行同样查找,直到key=index
@@ -725,7 +970,7 @@ def find_child_bom(f,db='BATCH'):      # 根据编码查找子零件
         bom_total()
         if db.upper() == 'BATCH':
             for n,item in enumerate(bom):
-                code,draw, name = get_code_info(item[1])
+                code,draw,name = get_code_info(item[1])
                 bom[n]=(item[0],code,draw,name,item[2],item[3])
                 
         elif db.upper() == 'DESIGN':
@@ -738,37 +983,7 @@ def find_child_bom(f,db='BATCH'):      # 根据编码查找子零件
         rst['bom'] = bom     
     return rst
 
-def find_design_code(f):    #在设计BOM中查找物料
-    rst_code_1 = []
-    rst={}
-    f=f.replace('.','\.')    
-    f = f.replace('*', '.*')    # 将windows习惯用法的 * 转换为python中的 .*
-    x = re.compile(f)  # 使用正则表达式中通配符进行查询
-    for key in all_design_bom:
-        for item in all_design_bom[key]:
-            for m in item[1:]:
-                if isinstance(m,str) and x.search(m):
-                    rst_code_1.append(item[:])   #要对元素进行添加,而不是整个地址引用,那样会造成原列表被修改
-    
-    if rst_code_1:
-        rst_code_1=[(1,)+x[1:] for x in rst_code_1]
-                    
-        rst_code_2 = set(x for x in rst_code_1)
-        rst_code_2=[x for x in rst_code_2]
-        rst_code_2.sort(key=rst_code_1.index)
-        rst['code']=rst_code_2     #[层次,编码,图号,名称,数量,总数量,材料,重量,备注]
-      
-    return rst
-
 def get_code_info(s):  # 根据编码返回图号和名称    
-    '''
-    conn = sqlite3.connect(dbfile)
-    cur = conn.cursor()
-
-    cur.execute('SELECT (draw,name) FROM code WHERE code=?', s)
-    if cur.fetchall():
-        return cur.fetchall()[0], cur.fetchall()[1]
-    '''    
     sa = s.replace('P', '')
     if sa in all_batch_code:
         return all_batch_code[sa]
@@ -776,7 +991,7 @@ def get_code_info(s):  # 根据编码返回图号和名称
         return sa,'-',batch_root[sa]
     else:
         return '-', '-', '-'
-        
+
 def get_designcode_info(s):  # 根据编码返回图号和名称     
     if s in all_design_code:
         return all_design_code[s]          
@@ -786,8 +1001,8 @@ def get_designcode_info(s):  # 根据编码返回图号和名称
         return s, '-', design_root[s], '-', 0, '-'
     elif s in batch_root:
         return s, '-', batch_root[s], '-', 0, '-' 
-        
-def read_design_BOM(file,type='BOM'):  # 统一读取各种bom文件,输出格式为统一的
+
+def read_design_BOM(file,type='BATCH'):  # 统一读取各种bom文件,输出格式为统一的
     # 先判断属性列和root,再读取并按统一格式生成列表:(除了名字和编码以外的列都允许不存在,由后续程序进行判断)
     # [0层次,1编码,2图号,3名称,4数量,5材料,6重量,7备注,8材料成本,9人工成本,10管理成本]
     # 第一行是表头，有属性的为字段，无属性的为‘-’
@@ -825,7 +1040,7 @@ def read_design_BOM(file,type='BOM'):  # 统一读取各种bom文件,输出格�
         for row in wsheet.values:
             str_row += 1
             if str_row > 10:
-                rst['error']='前10行找不到基本的属性列(编码，名称)'
+                rst['error']='前10行找不到基本的属性列:'+str(title)
                 break         
             for c, value in enumerate(row):
                 for key in lable_t:
@@ -840,7 +1055,7 @@ def read_design_BOM(file,type='BOM'):  # 统一读取各种bom文件,输出格�
                         else:
                             col[lable_t[key]] = c
 
-            if 'code' in col and 'name' in col:
+            if title[0] in col and 'name' in col:
                 col['str_row'] = str_row
                 if 'lv' in col:
                     if 'num' not in col:
@@ -879,36 +1094,47 @@ def read_design_BOM(file,type='BOM'):  # 统一读取各种bom文件,输出格�
             else:
                 return ' 行缺少层次'
 
-    def fmt(x):
-        if isinstance(x, (int,float)):
-            return round(x, 2)        
-        elif isinstance(x, datetime):
-            return x.strftime('%Y-%m-%d')
-        elif isinstance(x, str):
-            x = x.replace(' ', '')
+    def check_excel_code(code, draw,row_num):  #对编码进行检查
+        code1 = check_code(code, draw)        
+        if type=='CHECK':
+            if code1 != code:
+                fill_blue = PatternFill('solid',fgColor='EFBF00')                
+                wsheet.cell(row=row_num, column=col['code'] + 1).value = code1
+                wsheet.cell(row=row_num, column=col['code'] + 1).fill = fill_blue
+        elif type == 'DESIGN':
+            pass
+        return code1.replace('old', '')
+
+    def write_QTY(lv, num, row_num):        
+        for n in range(lv + 1, 7):
+            lv_num[n]=0
+        lv_num[lv] = num * lv_num[lv - 1]
+        wsheet.cell(row=row_num, column=col['num'] + 2).value = lv_num[lv]
+
+    def read_item(wsheet):
+        def fmt_str(x):
             if x:
-                try:
-                    n = float(x)
-                    return round(n, 2)
-                except:
+                x=str(x)
+                x = x.replace(' ', '')
+                if x:
                     return x.upper()
+                else:
+                    return '-'
             else:
                 return '-'
-        else:
-            return '-'    
+        def fmt_num(x):
+            if not x:
+                return 0
+            elif isinstance(x, int):
+                return x            
+            else:
+                try:                
+                    return round(float(x), 2)
+                except:
+                    return x
 
-    def check_excel_code(code,draw,name,row_num):   #对编码进行检查
-        fill_blue = PatternFill('solid',fgColor='EFBF00')
-        code1=check_code(code, draw)
-
-        if code1 != code:
-            excel_bom.append([1,code1,draw,name])
-            wsheet.cell(row=row_num, column=col['code'] + 1).value = code1                
-            wsheet.cell(row=row_num, column=col['code'] + 1).fill = fill_blue  #对修改过的单元格进行填充
-            
-    def read_item(wsheet):
         row_num = col['str_row'] - 1
-        chd_lv = 0       
+        chd_lv = 0
         for row in wsheet.iter_rows(min_row=col['str_row'], values_only=True):
             item={}
             row_num += 1
@@ -916,56 +1142,62 @@ def read_design_BOM(file,type='BOM'):  # 统一读取各种bom文件,输出格�
                 if key in col:
                     if key == 'lv':                        
                         item[key] = get_lv(row[col['lv']:col['lv_end'] + 1])
+                    elif key in ('num','weight','cost_mt', 'cost_lb', 'cost_exp'):
+                        item[key] = fmt_num(row[col[key]])
                     else:
-                        item[key] = fmt(row[col[key]])
+                        item[key] = fmt_str(row[col[key]])
                 else:
                     item[key] = '-'
 
-            if item['name'] != '-':
-                if 'lv' in item:
-                    if isinstance(item['lv'], int):
-                        if len(excel_bom)==1:   # 第二行的层次必须是2, 所以要根据第二行的层次来确定一个整体层次的调整系数
-                            chd_lv = 2 - item['lv']
-                        item['lv'] = item['lv'] + chd_lv
-                    else:
-                        rst['error'] = '第 ' + str(row_num) + item['lv']
-                        break                    
-                    if not isinstance(item['num'], (int, float)):
-                        if item['num'] == '-':
-                            item['num'] = 0
-                        else:
-                            rst['error'] = '第 ' + str(row_num) + '行没有数量或格式不对'
-                            break
+            if item['name'] == '-':  #跳过空行
+                continue
 
-                if not isinstance(item['code'], str):
-                    if type == 'CODE':   #当读取物料库时，允许编码错误，其它情况下提示错误
-                        item['code']=str(item['code'])                        
-                    else:
-                        rst['error'] = '第 ' + str(row_num) + '行编码格式不对'
-                        break
-
-                item['name'] = str(item['name'])
-                if 'draw' in item:
-                    item['draw'] = str(item['draw'])
-                if 'metal' in item:
-                    item['metal'] = str(item['metal'])
-                if 'remark' in item:
-                    item['remark'] = str(item['remark'])
-
-                if type == 'CHECK':  #如果是检查编码模式，则对编码进行查询，并写入excel
-                    check_excel_code(item['code'], item['draw'], item['name'],row_num)
+            if 'lv' in item:
+                if isinstance(item['lv'], int):
+                    if len(excel_bom)==1:   # 第二行的层次必须是2, 所以要根据第二行的层次来确定一个整体层次的调整系数
+                        chd_lv = 2 - item['lv']                            
+                    item['lv'] = item['lv'] + chd_lv
+                    last_lv = item['lv']
+                    if item['lv'] > 1 and item['lv'] > last_lv + 1:  # 检查层次是否连续
+                        item_error.append('第 ' + str(row_num) + ' 行层次和上层脱节')
                 else:
-                    t=[]
-                    for k in title:
-                        t.append(item[k])
-                    excel_bom.append(t)
+                    item_error.append('第 ' + str(row_num) + item['lv'])
+                                                        
+            if 'num' in item:
+                if isinstance(item['num'], (int, float)):
+                    if type == 'QTY' and not item_error:
+                        write_QTY(item['lv'],item['num'], row_num)                
+                else:
+                    item_error.append('第 ' + str(row_num) + '行没有数量或格式不对')
+
+            if 'code' in item:   #对编码格式进行检查,并
+                if type in ('DESIGN','CHECK') and not item_error:
+                    item['code']=check_excel_code(item['code'],item['draw'],row_num)
+
+                if re.match(rule['code'], item['code']) or re.match(rule['root'], item['code']) or  re.match(rule['rootnew'], item['code']):
+                    pass
+                elif item['code'] == '-' and type in ('DESIGN', 'CHECK'):  #有时候允许为-
+                    pass
+                elif type == 'CODE':  #当读取物料库时，允许编码错误，其它情况下提示错误
+                    continue
+                elif type == 'TEMP':  #当TEMP时,不检查编码格式
+                    pass
+                else:
+                    item_error.append('第 ' + str(row_num) + '行编码格式不对')
+
+            if not item_error:
+                t=[]
+                for k in title:
+                    t.append(item[k])
+                excel_bom.append(t)
             
     excel_bom = []
     col = {}
     rst={}
     skip_sheet = ''
+    item_error=[]
     m=True
-    if type=='BOM':
+    if type in ('BATCH','DESIGN','TEMP'):
         title = ('lv', 'code', 'draw', 'name', 'num', 'metal', 'weight', 'remark')
     elif type == 'CODE':
         title = ('code', 'draw', 'name')
@@ -974,6 +1206,10 @@ def read_design_BOM(file,type='BOM'):  # 统一读取各种bom文件,输出格�
     elif type == 'CHECK':
         m = False
         title = ('code', 'draw', 'name')
+    elif type == 'QTY':
+        lv_num = {0: 1, 1: 1}
+        m = False
+        title = ('lv', 'name','num')
 
     try:
         wbook = xl.load_workbook(file, read_only=m)
@@ -987,28 +1223,33 @@ def read_design_BOM(file,type='BOM'):  # 统一读取各种bom文件,输出格�
         names = [wbook.active.title]
            
     for sname in names:        
-        wsheet = wbook[sname]       
+        wsheet = wbook[sname]
         get_col(wsheet)
         if col and 'error' not in rst:
             if type == 'CHECK':
-                wbook.copy_worksheet(wsheet)   #创建一个原工作表的备份
+                wbook.copy_worksheet(wsheet)    #创建一个原工作表的备份
+            elif type == 'QTY':
+                wbook.copy_worksheet(wsheet)    #创建一个原工作表的备份
+                wsheet.insert_cols(col['num']+2)   #在数量列后面插入一列,inset会插入在前面,cols时列从1开始，而rows数组从0开始
+
             read_item(wsheet)
         else:
             skip_sheet += wsheet.title
         
     if 'error' in rst:
-        rst['error'] = wsheet.title + ' 表的' + rst['error']
-
-    elif type == 'CHECK':  #如果是检查编码模式，则将写入的结果保存到excel表
-        if excel_bom:
-            rst['bom'] = excel_bom
+        rst['error'] = wsheet.title + ' 表的' + rst['error']    
+    elif item_error:
+        item_error=[[1,x] for x in item_error]
+        rst['itemerror'] = item_error        
+    elif type in ('CHECK','QTY'):  #如果是检查编码模式，则将写入的结果保存到excel表
+        if excel_bom:            
             try:
                 wbook.save(file)
             except Exception as ex:
-                rst['error'] = '文件写入失败：' + str(ex)
+                rst['error'] = 'EXCEL文件写入失败：' + str(ex)
         else:
             rst['error'] = '所有编码未改动'
-    else:        
+    else:
         head=[]
         for key in title:
             if key in col:
@@ -1025,101 +1266,25 @@ def read_design_BOM(file,type='BOM'):  # 统一读取各种bom文件,输出格�
     return rst  #[0层次,1编码,2图号,3名称,4数量,5材料,6重量,7备注,8材料成本,9人工成本,10管理成本]
 
 def check_code(code,draw):   # 检查编码
-    # 如果有编码,先检查在编码库中是不是old,如果是则查找新的;如果没有编码且有图号,则根据图号去编码库查找
-    # [0层次,1编码,2图号,3名称,4数量,5材料,6重量,7备注,8材料成本,9人工成本,10管理成本]
-           
-    if code == '-':
+    # 如果有编码,如果没有编码且有图号,则根据图号去编码库查找
+    
+    if not re.match(rule['code'],code):
         if draw != '-' and 'GB' not in str(draw):
             rst=find_code(draw, item='ALL', exact=True)
             if 'code' in rst and len(rst['code'])==1:
-                code= rst['code'][0][0]
-                
-    elif isinstance(code, str) and 'R' in code and 'P' not in code:
-        if code in all_batch_code and 'old' in all_batch_code[code][0]:
-            code+= ' old'
+                code= rst['code'][0][0]                
+    elif code in all_batch_code:
+        code= all_batch_code[code][0]
+    return code
 
-    return str(code)
-
-def check_excel_code(file):   #检查excel表里的编码,如果有的检查是否旧编码;没有的则用图号或名称去查找
-    def get_col(wsheet):
-        col.clear()
-        title_need = {            
-            '编码': 'code',
-            '图号': 'draw',
-            '代号': 'draw',            
-            '名称': 'name',            
-        }
-
-        str_row = 1
-        for row in wsheet.values:
-            str_row += 1
-            if str_row > 10:
-                rst['error']='前10行找不到BOM属性列(层次，编码，名称，数量)'
-                break         
-            for c, value in enumerate(row):
-                for key in title_need:
-                    if isinstance(value, str) and key in value.replace(' ', ''):
-
-                        col[title_need[key]] = c
-
-            if len(col) == 3:
-                col['str_row']=str_row
-                break
-            else:
-                col.clear()
-
-    def update_excel():                
-        def fmt(x):
-            x=str(x).upper().strip()
-            if x:
-                return x
-            else:
-                return '-'
-
-        fill_blue = PatternFill('solid',fgColor='EFBF00')
-        row_num=col['str_row']-1
-        for row in wsheet.iter_rows(min_row=col['str_row'], values_only=True):           
-            row_num+=1
-            code = fmt(row[col['code']])            
-            draw = fmt(row[col['draw']])
-
-            code1=check_code(code, draw)
-            if code1 != code:
-                wsheet.cell(row=row_num, column=col['code'] + 1).value = code1                
-                wsheet.cell(row=row_num, column=col['code'] + 1).fill=fill_blue   #对修改过的单元格进行填充
-
-    wbook = xl.load_workbook(file)
-    wsheet = wbook.active
-    wbook.copy_worksheet(wsheet)   #创建一个原工作表的备份
-    
-    col = {}
-    rst={}
-    get_col(wsheet)
-
-    if col and 'error' not in rst:  # 查找层次,编码,数量 对应的列数,及起始行数       
-        update_excel()
-        try:
-            wbook.save(file)
-        except:
-            rst['error']='文件写入失败'
-
-    if 'error' in rst:
-        rst['error'] = wsheet.title + ' 表的' + rst['error']
-        
-    return rst
-
-def update_to_bom_db(excel_bom,db='BATCH',mode='W'): #将已读取的设计BOM写入设计BOM库,分别创建designcode和designbom库
+def update_to_bom_db(excel_bom,db='BATCH',type='W'): #将已读取的设计BOM写入设计BOM库,分别创建designcode和designbom库
     #[0层次,1编码,2图号,3名称,4数量,5材料,6重量,7备注]
     # 把设计BOM按小批样式，分物料库和BOM库，用一个自增数字作为代码进行唯一区别
     #designcode结构：code:[code,draw,name,metal,weight,remark]
     #designbom结构：[code:[[code1,num1],        ]           ]
-    def creat_bom():  #对没有编码的,以图号和名称为编码        
-        ebom.append(tuple(excel_bom[0]))
-        c = r'\d{2}R'  #利用正则匹配，前2位是数字，第3位是R
-        for item in excel_bom[1:]:
-            if not re.match(c,item[1]):
-                item[1] = check_code(item[1], item[2])               
-            if not re.match(c,item[1]):
+    def creat_bom():  #对没有编码的,以图号和名称为编码         
+        for item in excel_bom:
+            if item[1]=='-':     #对于找不到编码的，用图号+名称作为编码
                 item[1] = item[2] + item[3]
             ebom.append(tuple(item))
 
@@ -1128,7 +1293,7 @@ def update_to_bom_db(excel_bom,db='BATCH',mode='W'): #将已读取的设计BOM�
                 ('C01', 'C02', 'C03', 'C04', 'C05', 'C06','C07', 'C08')+
                 ('E01', 'E02', 'E03', 'E04', 'E05', 'E06', 'E07', 'E08'))
 
-        for item in ebom:            
+        for item in ebom:
             code = item[1]
             draw = item[2]
             name = item[3]            
@@ -1143,9 +1308,9 @@ def update_to_bom_db(excel_bom,db='BATCH',mode='W'): #将已读取的设计BOM�
                         new_code[code] = item
                 else:
                     new_code[code] = item
-            elif mode=='W':
+            elif type=='W':
                 if all_design_code[code] != item:
-                    new_code[code] = item           
+                    new_code[code] = item
 
     def creat_bom_dict():  #创建读取物料的设计BOM的字典
         bom={}         
@@ -1177,7 +1342,7 @@ def update_to_bom_db(excel_bom,db='BATCH',mode='W'): #将已读取的设计BOM�
             if key not in all_bom:
                 for code in item:
                     new_bom.append((key, code[0], code[1]))
-            elif mode=='W': #因为内部元素顺序可能不同，所以要转为set，再进行对比                
+            elif type=='W': #因为内部元素顺序可能不同，所以要转为set，再进行对比                
                 if set(item) != set(all_bom[key]):
                     old.append(key)
                     for code in item:
@@ -1188,9 +1353,7 @@ def update_to_bom_db(excel_bom,db='BATCH',mode='W'): #将已读取的设计BOM�
     else:
         del excel_bom[0]  #删除BOM表里面的属性头
 
-    root = excel_bom[0][1]
-    draw = excel_bom[0][2]    
-    rootname=  excel_bom[0][3]
+    
 
     ebom = []
     ebom_dict={}
@@ -1199,41 +1362,51 @@ def update_to_bom_db(excel_bom,db='BATCH',mode='W'): #将已读取的设计BOM�
     old = []        #有变动的物料,用于在数据库中删除
     txt={'BATCH':'小批','DESIGN':'设计'}
     db=db.upper()
-    if db == 'BATCH':        
+    if db == 'BATCH':
         all_bom = all_batch_bom
-        db_bom = 'batchBOM'
-        db_code = 'code'
-        batch_root[root]=rootname
+        dbsheet_bom = 'batchBOM'
+        dbsheet_code = 'code'
+        
     elif db == 'DESIGN':
         all_bom = all_design_bom
-        db_bom = 'designBOM'
-        db_code = 'designCODE'
-        design_root[root]=rootname
+        dbsheet_bom = 'designBOM'
+        dbsheet_code = 'designCODE'
+        
         creat_bom()
         creat_new_code()
-        
-    creat_bom_dict()    
+
+    creat_bom_dict()
     creat_new_bom()
+    root = excel_bom[0][1]
+    draw = excel_bom[0][2]
+    rootname = excel_bom[0][3]
     
+    if type=='TEMP':  # 如果是临时性读取bom,则不进行数据库文件的保存
+        all_design_code.update(new_code)
+        all_bom.update(ebom_dict)
+
+        return root,'临时读取的BOM为: '
     try:        
         if new_code:
-            insert_db(new_code.values(), db_code)
+            insert_db(new_code.values(), dbsheet_code)
             all_design_code.update(new_code)
-        if db == 'BATCH':
-            insert_db(((root, draw, rootname),), 'code')
+        if re.match(rule['root'],root) or re.match(rule['rootnew'],root):
+            if db == 'BATCH':
+                insert_db(((root, draw, rootname),), 'code')
+            insert_db(((root, rootname, db),), 'root')  #将root信息写入root 
+            load_root_db()
         if old:
             old=old+['code']
-            remove_db(tuple(old), db_bom)        
+            remove_db(tuple(old), sheet=dbsheet_bom)        
         if new_bom:            
-            insert_db(new_bom, db_bom)
-            insert_db(((root, rootname, db),), 'root')   #将root信息写入root           
-        conn.commit()
+            insert_db(new_bom, dbsheet_bom)
+
         all_bom.update(ebom_dict)
-        
-        return root + '已成功写入{0} 库'.format(txt[db])
+        conn.commit()        
+        return root,root + '已成功写入{0} 库'.format(txt[db])
     except Exception as ex:
         conn.rollback()
-        return '{0}物料库写入失败,已撤销:'.format(txt[db]) + str(ex)
+        return root,'{0}数据库写入失败,已撤销:'.format(txt[db]) + str(ex)
 
 def update_to_code_db(excel_bom):   #根据读取的物料信息,将变动过的写入数据库    
     #[0编码,1图号,2名称]
@@ -1252,11 +1425,11 @@ def update_to_code_db(excel_bom):   #根据读取的物料信息,将变动过的
             b = keys[x + 1]
             if b[-1] == 'P':
                 old.append(a)
-                all_batch_code[a]= (all_batch_code[a][0]+'-old',)+all_batch_code[a][1:3]
+                all_batch_code[a]= (all_batch_code[a][0]+'old',)+all_batch_code[a][1:3]
                     
             elif a[:-1] == b[:-1] and a[-1]<b[-1]:
                 old.append(a)
-                all_batch_code[a]= (all_batch_code[a][0]+'-old',)+all_batch_code[a][1:3]
+                all_batch_code[a]= (all_batch_code[a][0]+'old',)+all_batch_code[a][1:3]
                     
             if x == len(keys) - 2:
                 break
@@ -1428,6 +1601,30 @@ def reclac_parent_cost():  # 对BOM库中组合件的成本重新按结构进行
         rst['error'] = '成本更新失败:'+str(ex)    
     return rst
 
+def scan_path(filedir,type=('.SLDDRW','.DWG')):
+    def get_file(fdir):
+        files = [x for x in listdir(fdir)]    #列出当前目录下所有内容
+        patchs = [path.join(fdir, x) for x in files]  #拼接出当前目录下所有路径
+        
+        for item in patchs:
+            if path.isfile(item):
+                fname = path.basename(item).upper()
+                lname=path.splitext(item)[1].upper()
+                if lname in type:
+                    name=fname.replace(lname,'')
+                    file_path.append([name,item])
+            elif path.isdir(item):
+                get_file(item)
+
+    file_path = []
+    get_file(filedir)
+    rst = {}
+    if file_path:        
+        rst['path']=file_path
+    else:
+        rst['error'] = '选择的目录内没有图纸文件,请重新选择'
+    return rst
+
 def read_json_date(filename):  # 从现有文件读取数据
     try:
         with open(filename, 'r', encoding='utf-8') as f:
@@ -1480,8 +1677,12 @@ def creat_db():  #数据库初始化检查,如果没有则创建对应的表
                 metal VARCHAR,\
                 weight INTEGER,\
                 remark VARCHAR); "
-
-    for sql in (batchBOM, code, root, cost, designBOM,designCODE):        
+    
+    drawPATH="CREATE TABLE IF NOT EXISTS drawPATH (\
+            draw VARCHAR,\
+            path VARCHAR PRIMARY KEY,\
+            remark VARCHAR); "
+    for sql in (batchBOM, code, root, cost, designBOM,designCODE,drawPATH):        
         try:
             cur.execute(sql)
         except Exception as ex:
@@ -1512,7 +1713,9 @@ def load_root_db():  #读取已写入的root列表,分为batchBOM和designBOM
         if item[2]=='BATCH':
             batch_root[item[0]] = item[1]
         elif item[2] == 'DESIGN':
-            design_root[item[0]] = item[1]    
+            design_root[item[0]] = item[1]
+        elif item[2] == 'PATH':
+            path_root[item[0]]=item[1]
     cur.close()
 
 def load_cost_db():  #读取成本信息    
@@ -1524,21 +1727,31 @@ def load_cost_db():  #读取成本信息
         
     cur.close()
 
-def load_design_db():  #读取设计BOM
-    
-    cur = conn.cursor()    
+def load_design_db():  #读取设计BOM  
+    cur = conn.cursor()
     cur.execute('SELECT * FROM designBOM')
-    for item in cur.fetchall():            
+    for item in cur.fetchall():
         if item[0] not in all_design_bom:
             all_design_bom[item[0]] = [(item[1], item[2])]
         else:
             all_design_bom[item[0]].append((item[1], item[2]))
-    
+        
+    for item in all_design_bom.values():
+    #考虑到物料结构借用，所以要将设计BOM中用到的组合件(24R/28R)，但又没有子零件的，从小批库读取过来
+        for m in item:
+            if m[0][:3] in ('24R', '28R') and m not in all_design_bom and m in all_batch_bom:
+                all_design_bom[m]=all_batch_bom[m]
+
     cur.execute('SELECT * FROM designCODE')
     for item in cur.fetchall():
         all_design_code[item[0]] = item
-    
     cur.close()
+
+def load_drawpath_db():
+    cur = conn.cursor()
+    cur.execute('SELECT * FROM drawPATH')
+    for item in cur.fetchall():
+        draw_path[item[0]] = item[1]
 
 def insert_db(new,sheet):   #将信息写入数据库    
     cur = conn.cursor()
@@ -1548,18 +1761,21 @@ def insert_db(new,sheet):   #将信息写入数据库
         'root': ' VALUES (?,?,?)',
         'cost': ' (code,cost_mt,cost_lb,cost_exp,cost_tot,datetime) VALUES (?,?,?,?,?,?)',
         'designBOM': ' VALUES (?,?,?)',
-        'designCODE':' VALUES (?,?,?,?,?,?)'
+        'designCODE': ' VALUES (?,?,?,?,?,?)',        
+        'drawPATH': ' VALUES (?,?,?)',
     }
 
-    sql = 'INSERT OR REPLACE INTO ' + sheet + table[sheet]    
-    cur.executemany(sql, new)    
+    sql = 'INSERT OR REPLACE INTO ' + sheet + table[sheet]
+    cur.executemany(sql, new)
     cur.close()
 
-def remove_db(old, sheet):   #从数据库中删除指定编码的物料
-    
+def remove_db(old1='',col1='code',old2='',col2='',sheet=''):   #从数据库中删除指定编码的物料    
     cur = conn.cursor()
-    sql = 'DELETE FROM ' + sheet + ' WHERE code in ' + str(old)    
-    cur.execute(sql)    
+    sql = 'DELETE FROM ' + sheet + ' WHERE ' + col1 + ' in ' + str(old1)
+    if col2 and old2:
+        sql += 'AND ' + col2 + ' in ' + str(old2)
+        
+    cur.execute(sql)
     cur.close()
 
 def set_old_item(olditem,table):  #对有变动的物料,remark设置为old    
@@ -1568,23 +1784,35 @@ def set_old_item(olditem,table):  #对有变动的物料,remark设置为old
     cur.execute(sql)    
     cur.close()
 
-def find_db(item, sheet,field):   #直接从数据库查询物料
-    
+def find_db(col,item, sheet):   #直接从数据库查询物料    
     cur = conn.cursor()
-    sql = "PRAGMA table_info({0})".format(sheet)
-    cur.execute(sql)
-    cols = tuple(x[1] for x in cur.fetchall())
     
-    if field == 'ALL':
-        item ='\'%  #'+item+'#%\''
-        field = '\'#\'code\'#\'||draw\'#\'||name\'#\''  # 将各个字段拼接起来，用like进行比较
-    elif field not in cols:
-        return
+    if item == '*':
+        sql = 'SELECT * FROM ' + sheet
+    else:
+        sql = "PRAGMA table_info({0})".format(sheet)
+        cur.execute(sql)
+        cols = tuple(x[1] for x in cur.fetchall())  #得到数据表所有列名
+        if col == 'ALL':
+            item = '\'%#' + item + '#%\''
+            col=''
+            for item in cols:
+                if col:
+                    col+='\'#\'||'
+                col += item
+            col += '\'#\''
+            col = '\'#\''+col
+            
+            #col = '\'#\'code\'#\'||draw\'#\'||name\'#\''  # 将各个字段拼接起来，用like进行比较
+        elif col in cols:
+            item = '\''+item+'\''
+        else:       
+            return
+    
+        sql = 'SELECT * FROM ' + sheet + ' WHERE ' + col + ' LIKE ' + item
 
-    sql = 'SELECT * FROM '+sheet+' WHERE '+field+' LIKE '+item
     cur.execute(sql)
-    rst={}
-    rst['bom']=cur.fetchall()
+    rst=cur.fetchall()
     cur.close()
     return rst
 
@@ -1606,7 +1834,7 @@ def load_old_cost():  #从数据库查询有变动过的成本
     cur.close()
     return cost_changed
 
-def save_to_excel(file, bom,target):  #把表格内容保存到excel文件
+def save_to_excel(file, bom,target,colname):  #把表格内容保存到excel文件
 
     wb = xl.Workbook()
     ws = wb.active
@@ -1617,7 +1845,7 @@ def save_to_excel(file, bom,target):  #把表格内容保存到excel文件
     ws.append([target])     #添加标题    
     ws['A1'].font = font_title
 
-    ws.append(['层次', '序号', '编码', '图号', '名称', '数量', '总数量', '材料', '备注'])
+    ws.append(colname)   #添加列名
     for i in ws[2]:
         i.fill = fill_blue
         i.font = font_bold
@@ -1644,14 +1872,8 @@ def save_to_excel(file, bom,target):  #把表格内容保存到excel文件
     except Exception as ex:
         rst['error']='文件保存错误: '+str(ex)
     return rst
-
+    
 #---------------------主程序区---------------------
-
-#all_batch_code = read_json_date('all_batch_code.json')
-#all_batch_bom = read_json_date('all_batch_bom.json')
-#all_design_bom=read_json_date('all_design_bom.json')
-#all_original_bom = read_json_date('all_original_bom.json')
-#all_cost = read_json_date('all_cost.json')
 
 all_batch_bom = {}
 all_batch_code = {}
@@ -1659,18 +1881,28 @@ all_cost = {}
 all_design_bom = {}
 all_design_code={}
 design_root = {}
-batch_root={}
+batch_root = {}
+path_root = {}
+draw_path={}
 day = datetime.now().strftime('%Y-%m-%d')
 #day='2019-10-23'
 
 dbfile = 'batchITEM.db'
 conn = sqlite3.connect(dbfile)
 
+rule = {'code': r'\d{2}R',
+        'root': r'C|E\d{2}-',
+        'asmb': r'24|8R',
+        'metal': r'0[1234]R',
+        'rootnew':r'N\d{4}'
+            }
+
 creat_db()
 load_root_db()
 load_cost_db()
 load_batch_db()
 load_design_db()
+#load_drawpath_db()
 
 print('code库记录: ', len(all_batch_code))
 print('cost库记录:',len(all_cost))
@@ -1678,6 +1910,7 @@ print('batchBOM库记录: ' ,len(all_batch_bom))
 print('designBOM库记录：',len(all_design_bom))
 print('小批产品库记录：', batch_root)
 print('设计产品库记录：', design_root)
+#print('图纸库记录：', len(draw_path))
 
 op = main_GUI()
 op.root.mainloop()

@@ -27,6 +27,9 @@ ws2 = wb.create_sheet("Mysheet", 0)
 # sheet 名称可以作为 key 进行索引
 ws3 = wb["New Title"]
 ws4 = wb.get_sheet_by_name("New Title")
+ws = wb.active  # 获取当前表
+
+newsheet=wb.copy_worksheet(ws)   #将工作表复制一份
 
 # 6. 查看表名（sheet）
 # 显示所有表名
@@ -34,7 +37,9 @@ print(wb.sheetnames)
 ['Sheet2', 'New Title',  'Sheet1']
 # 遍历所有表
 for sheet in  wb:
-    print(sheet.title)
+    print(sheet.title)   # 获取表名字
+
+
 
 # 7. 访问单元格（call）
 # 7.1 单一单元格访问
@@ -48,55 +53,35 @@ for i in  range(1,101):
         ws.cell(row=i, column=j)
 
 # 7.2 多单元格访问
+
 # 通过切片
->>> cell_range = ws['A1':'C2']
+cell_range = ws['A1':'C2']
+
+n=2
+cell_range=ws['A%d'%n]    # 动态返回单元格 An
 # 通过行(列)
+
 >>> colC = ws['C']
 >>> col_range = ws['C:D']
 >>> row10 = ws[10]
->>> row_range = ws[5:10]
+>> > row_range = ws[5:10]
+
 # 通过指定范围(行 → 行)
->>> for row in  ws.iter_rows(min_row=1, max_col=3, max_row=2):
-...    for cell in  row:
-...        print(cell)
-<Cell Sheet1.A1>
-<Cell Sheet1.B1>
-<Cell Sheet1.C1>
-<Cell Sheet1.A2>
-<Cell Sheet1.B2>
-<Cell Sheet1.C2>　
-# 通过指定范围(列 → 列)
->>> for row in  ws.iter_rows(min_row=1, max_col=3, max_row=2):
-...    for cell in  row:
-...        print(cell)
-<Cell Sheet1.A1>
-<Cell Sheet1.B1>
-<Cell Sheet1.C1>
-<Cell Sheet1.A2>
-<Cell Sheet1.B2>
-<Cell Sheet1.C2>
+# 取值 Values only
+>>> for row in  ws.iter_rows(min_row=1, max_col=3, max_row=2,values_only=True):
+...    print(row)
+
+# 如果只需要从工作表中获取值，可以使用Worksheet.values属性。这将遍历工作表中所有行，但只返回单元格值：
+for row in ws.values:
+    for value in row:
+        print(value)
+
 # 遍历所有 方法一
->>> ws = wb.active
->>> ws['C9'] = 'hello world'
->>> tuple(ws.rows)
-((<Cell Sheet.A1>, <Cell Sheet.B1>, <Cell Sheet.C1>),
-(<Cell Sheet.A2>, <Cell Sheet.B2>, <Cell Sheet.C2>),
-...
-(<Cell Sheet.A8>, <Cell Sheet.B8>, <Cell Sheet.C8>),
-(<Cell Sheet.A9>, <Cell Sheet.B9>, <Cell Sheet.C9>))
-# 遍历所有 方法二
->>> tuple(ws.columns)
-((<Cell Sheet.A1>,
-<Cell Sheet.A2>,
-<Cell Sheet.A3>,
-...
-<Cell Sheet.B7>,
-<Cell Sheet.B8>,
-<Cell Sheet.B9>),
-(<Cell Sheet.C1>,
-...
-<Cell Sheet.C8>,
-<Cell Sheet.C9>))
+tuple(ws.rows)   #全部单元格的一个元组集合,每行是一个小元组
+
+#当我们创建了一个单元格对象，我们可以对其赋值：
+c.value = 'hello, world'
+
 
 # 8. 保存数据
 wb.save('文件名称.xlsx')
