@@ -3,6 +3,7 @@ from parts.read_excel import read_design_BOM
 from parts.update import all_code,child_arbom
 from files.methods import filefind
 import zipfile
+
 # 查找有无此物料，并将子结构一并写入；
 def get_parts_from_bom(bom, include_child):
     def get_child(code,sn):
@@ -32,7 +33,7 @@ def get_parts_from_bom(bom, include_child):
 
     return new
 
-
+#-------------------------------------------------------------------------------------------
 # 数据写入arr_bom库
 def update_app_bom(app_id,bom):
     ApplicationBom.objects.filter(app_id=app_id).delete()

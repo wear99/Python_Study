@@ -1,6 +1,7 @@
 # 处理方法
 from .models import ssFile, Filelog
 from parts.update import part_file,all_code
+from parts.search import Partfind_dict,childfind_current
 from django.utils import timezone
 from django.db.models import Q
 import os,zipfile,zipstream
@@ -18,7 +19,7 @@ def LogFile(obj, tp, username):
 
 def get_ssfile_model(search,type):
     '当search为列表时用In查询，否则用包含查询'
-    
+
     q=ssFile.objects.all()
     if isinstance(search,list):
         if type == 'DRAW':
@@ -31,19 +32,19 @@ def get_ssfile_model(search,type):
         if type == 'DRAW':
             q = q.filter(filename__icontains=search)
         elif type == 'PRODUCT':
-            q = q.filter(product__icontains=search)        
+            q = q.filter(product__icontains=search)
         elif type == 'USERNAME':
-            q = q.filter(username=search)        
+            q = q.filter(username=search)
         elif type == 'ARCHIVE_ID':
             q = q.filter(archive=search)
         else:
             return []
-    
+
     return q
 
 
 # 把已存在的同名文件,按日期排序,只保留最新的，其余设为 失效0；
-def check_file_valid(objs):    
+def check_file_valid(objs):
     for obj in objs:
         ex = ssFile.objects.filter(filename=obj.filename, file_valid=1).exclude(
             file_id=obj.file_id).order_by('add_time').last()
@@ -54,7 +55,7 @@ def check_file_valid(objs):
                 ex.valid_time = obj.add_time
                 ex.save()
             elif obj.stage == ex.stage:
-                if obj.add_time > ex.add_time:            
+                if obj.add_time > ex.add_time:
                     ex.file_valid=0
                     ex.valid_info=obj.file_id
                     ex.valid_time=obj.add_time
@@ -91,7 +92,7 @@ def upload_file(ar_obj, files, username):
             up_files[new.file_id] = new
 
         # 写入上传记录
-        #LogFile(new, 'Upload', username)   
+        #LogFile(new, 'Upload', username)
 
     # 将同名文件设置为失效
     check_file_valid(up_files.values())
@@ -107,20 +108,43 @@ def upload_file(ar_obj, files, username):
 
 # 查找文件
 def filefind(search,field_type):
-    objs = get_ssfile_model(search, field_type)    
+    objs = get_ssfile_model(search, field_type)
     files = []
     for item in objs.values():
         item['add_time'] = item['add_time'].strftime("%Y-%m-%d")
-        
+
         # 查找图纸被关联的物料
         for key,value in all_code.items():
             if value['file_id']==item['file_id']:
-            #part = obj.partcode_set.last()         
+                #part = obj.partcode_set.last()
                 item['code'] = value['code']
                 item['name'] = value['name']
                 item['draw'] = value['draw']
 
         files.append(item)
+
+    return files
+
+
+def childfind_file(fileid):
+    '利用当前设计bom表，查找该文件的子图纸'
+    #先找到该文件的物料号
+    fcode=Partfind_dict(fileid,'file_id')
+
+    if not fcode:
+        return
+    fcode=fcode[-1]['code']
+
+    #用编码去查找子零件bom
+    fbom=childfind_current(fcode,)
+    if not fbom:
+        return
+
+    id=[]
+    for item in fbom:
+        id.append(item['file_id'])
+        
+    files = filefind(id,'FILE_ID')
 
     return files
 
